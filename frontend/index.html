@@ -36,8 +36,7 @@
 html,body{height:100%;overflow:hidden;}
 body{font-family:var(--font);background:var(--bg);color:var(--text-1);-webkit-font-smoothing:antialiased;
   background-image:radial-gradient(ellipse 80% 50% at 20% -10%,rgba(57,154,255,.13) 0%,transparent 60%),
-  radial-gradient(ellipse 60% 40% at 80% 110%,rgba(30,125,232,.10) 0%,transparent 60%);
-  transition:background 0.3s ease,color 0.3s ease;}
+  radial-gradient(ellipse 60% 40% at 80% 110%,rgba(30,125,232,.10) 0%,transparent 60%);}
 #root{height:100%;display:flex;flex-direction:column;overflow:hidden;}
 ::-webkit-scrollbar{width:6px;}
 ::-webkit-scrollbar-track{background:transparent;}
@@ -57,7 +56,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text-1);-webkit-fo
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const {useState,useRef,useCallback,useEffect} = React;
+const {useState,useRef,useCallback,useEffect,useLayoutEffect} = React;
 const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? 'http://localhost:8000'
   : window.location.origin;
@@ -70,7 +69,7 @@ const useTheme = () => {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = document.documentElement;
     if (theme === 'dark') {
       root.classList.add('dark-mode');

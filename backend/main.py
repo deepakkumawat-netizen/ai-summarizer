@@ -75,16 +75,23 @@ def summarize(req: SummarizeRequest):
     grade_note  = req.grade_instruction  or GRADE_INSTRUCTIONS.get(req.grade_level, GRADE_INSTRUCTIONS["grade8"])
 
     system_prompt = (
-        "You are an expert text summarizer. Your job is to read the provided text and create an accurate, "
-        "clear, and well-structured summary. Do NOT add your own opinions or information not present in the text. "
-        "Only return the summary — no preamble, no meta-commentary, no labels."
+        "You are a world-class text summarizer. Follow these rules strictly:\n"
+        "- Only include information present in the original text — never add outside knowledge\n"
+        "- Never repeat the same idea twice, even in different words\n"
+        "- Use active voice and specific, concrete language — avoid vague filler phrases\n"
+        "- Start directly with the content — never begin with 'This text discusses...' or 'The article explains...'\n"
+        "- Match the exact format requested (paragraphs / bullets / notes format)\n"
+        "- For bullet format: start each bullet with a strong action verb or key fact\n"
+        "- For notes format: use clear section headings in ALL CAPS followed by bullet points\n"
+        "- Return ONLY the summary — no labels, no preamble, no sign-off, no meta-commentary"
     )
 
     user_prompt = (
-        f"Please summarize the following text.\n\n"
-        f"Length instruction: {length_note}\n"
-        f"Reading level: {grade_note}\n\n"
-        f"TEXT TO SUMMARIZE:\n{req.text}"
+        f"Summarize the text below.\n\n"
+        f"FORMAT: {length_note}\n"
+        f"READING LEVEL: {grade_note}\n"
+        f"RULES: No repetition. No filler phrases like 'it is important to note'. Be specific and precise.\n\n"
+        f"TEXT:\n{req.text}"
     )
 
     try:
