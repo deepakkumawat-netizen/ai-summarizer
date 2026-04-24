@@ -20,6 +20,10 @@
   --shadow-lg:0 12px 48px rgba(57,154,255,.18);
   --font:'Sora',sans-serif; --font-display:'Playfair Display',serif;
 }
+.no-transitions *, .no-transitions *::before, .no-transitions *::after {
+  transition: none !important;
+  animation: none !important;
+}
 :root.dark-mode {
   --blue:#06b6d4; --blue-dark:#0891b2; --blue-deep:#0e7490;
   --blue-soft:#164e63; --blue-mid:#0f766e;
@@ -77,7 +81,11 @@ const useTheme = () => {
     }
   }, [theme]);
 
-  const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light');
+  const toggleTheme = () => {
+    document.documentElement.classList.add('no-transitions');
+    requestAnimationFrame(() => document.documentElement.classList.remove('no-transitions'));
+    setTheme(t => t === 'light' ? 'dark' : 'light');
+  };
   return { theme, toggleTheme };
 };
 
