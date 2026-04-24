@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+venv/
+.env
+*.db
+*.log
+node_modules/
+.claude/
+backend/crew.py
+backend/crew_integration.py

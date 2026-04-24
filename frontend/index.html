@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Text Summarizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,700;1,700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root {
+  --blue:#399aff; --blue-dark:#1e7de8; --blue-deep:#0f5abf;
+  --blue-soft:#eef5ff; --blue-mid:#c8deff;
+  --white:#ffffff; --bg:#f0f6ff; --card:#ffffff;
+  --text-1:#0a1628; --text-2:#3d5170; --text-3:#8fa3bb;
+  --border:#dbeafe; --shadow:0 4px 24px rgba(57,154,255,.10);
+  --shadow-lg:0 12px 48px rgba(57,154,255,.18);
+  --font:'Sora',sans-serif; --font-display:'Playfair Display',serif;
+}
+:root.dark-mode {
+  --blue:#06b6d4; --blue-dark:#0891b2; --blue-deep:#0e7490;
+  --blue-soft:#164e63; --blue-mid:#0f766e;
+  --white:#0f172a; --bg:#0a1117; --card:#1a2332;
+  --text-1:#e2e8f0; --text-2:#cbd5e1; --text-3:#94a3b8;
+  --border:#334155; --shadow:0 4px 24px rgba(6,182,212,.08);
+  --shadow-lg:0 12px 48px rgba(6,182,212,.12);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;}
+body{font-family:var(--font);background:var(--bg);color:var(--text-1);-webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(ellipse 80% 50% at 20% -10%,rgba(57,154,255,.13) 0%,transparent 60%),
+  radial-gradient(ellipse 60% 40% at 80% 110%,rgba(30,125,232,.10) 0%,transparent 60%);
+  transition:background 0.3s ease,color 0.3s ease;}
+#root{height:100%;display:flex;flex-direction:column;overflow:hidden;}
+::-webkit-scrollbar{width:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--blue-mid);border-radius:99px;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+@keyframes bounce{0%,80%,100%{transform:scale(.7);opacity:.4}40%{transform:scale(1.2);opacity:1}}
+@keyframes pulseRing{0%{box-shadow:0 0 0 0 rgba(57,154,255,.4)}70%{box-shadow:0 0 0 12px rgba(57,154,255,0)}100%{box-shadow:0 0 0 0 rgba(57,154,255,0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
+/* Dark mode fixes for hardcoded colors */
+:root.dark-mode textarea{background:#1a2332!important;color:var(--text-1)!important;border-color:var(--border)!important;}
+:root.dark-mode textarea::placeholder{color:var(--text-3)!important;}
+:root.dark-mode input[type="file"]{display:none!important;}
+:root.dark-mode code{background:var(--card)!important;color:var(--text-2)!important;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useRef,useCallback,useEffect} = React;
+const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:8000'
+  : window.location.origin;
+
+/* Theme Management */
+const useTheme = () => {
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('ais-theme');
+    if (saved) return saved;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark-mode');
+      localStorage.setItem('ais-theme', 'dark');
+    } else {
+      root.classList.remove('dark-mode');
+      localStorage.setItem('ais-theme', 'light');
+    }
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light');
+  return { theme, toggleTheme };
+};
+
+const LENGTH_MAP = {
+  "1_paragraph":"Summarize in exactly 1 paragraph.",
+  "2_paragraphs":"Summarize in exactly 2 paragraphs.",
+  "3_paragraphs":"Summarize in exactly 3 paragraphs.",
+  "4_paragraphs":"Summarize in exactly 4 paragraphs.",
+  "5_paragraphs":"Summarize in exactly 5 paragraphs.",
+  "bullets":"Summarize as a concise bullet-point list (use - for each). Include 5-8 bullets.",
+  "notes":"Summarize in notes format: labeled section headings followed by brief bullet points, like structured study notes.",
+};
+const GRADE_LABELS = {
+  k:"Kindergarten",grade1:"Grade 1",grade2:"Grade 2",grade3:"Grade 3",grade4:"Grade 4",
+  grade5:"Grade 5",grade6:"Grade 6",grade7:"Grade 7",grade8:"Grade 8",
+  grade9:"Grade 9",grade10:"Grade 10",grade11:"Grade 11",grade12:"Grade 12",
+};
+const GRADE_INSTR = {
+  k:"Write for a Kindergarten student. Use very simple words and very short sentences.",
+  grade1:"Write for a Grade 1 student. Use simple words a 6-year-old would understand.",
+  grade2:"Write for a Grade 2 student. Keep sentences short and vocabulary basic.",
+  grade3:"Write for a Grade 3 student. Use simple but complete sentences.",
+  grade4:"Write for a Grade 4 student. Use clear language for a 9-10 year old.",
+  grade5:"Write for a Grade 5 student. Use straightforward language for a 10-11 year old.",
+  grade6:"Write for a Grade 6 student. Use moderately simple language for an 11-12 year old.",
+  grade7:"Write for a Grade 7 student. Use clear language for a 12-13 year old.",
+  grade8:"Write for a Grade 8 student. Use accessible language for a 13-14 year old.",
+  grade9:"Write for a Grade 9 student. Use standard academic language for a 14-15 year old.",
+  grade10:"Write for a Grade 10 student. Use confident academic language for a 15-16 year old.",
+  grade11:"Write for a Grade 11 student. Use mature academic language for a 16-17 year old.",
+  grade12:"Write for a Grade 12 student. Use advanced language for a 17-18 year old.",
+};
+
+/* ── Tiny helpers ── */
+function Btn({onClick,disabled,children,style,onMouseEnter,onMouseLeave}){
+  return <button onClick={onClick} disabled={disabled} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}
+    style={{cursor:disabled?"not-allowed":"pointer",border:"none",fontFamily:"var(--font)",...style}}>{children}</button>;
+}
+function SmallBtn({onClick,children,green}){
+  const [h,setH]=useState(false);
+  return <button onClick={onClick}
+    onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)}
+    style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,
+      border:`1.5px solid ${h?(green?"#10b981":"var(--blue)"):"var(--border)"}`,
+      background:h?(green?"#ecfdf5":"var(--blue-soft)"):"var(--white)",
+      color:h?(green?"#10b981":"var(--blue)"):"var(--text-2)",
+      fontFamily:"var(--font)",fontSize:12,fontWeight:600,cursor:"pointer",transition:"all .18s ease"}}>
+    {children}
+  </button>;
+}
+function Select({label,value,onChange,children,minW=200}){
+  const [f,setF]=useState(false);
+  return <div style={{display:"flex",flexDirection:"column",gap:7,minWidth:minW}}>
+    <span style={{fontSize:11,fontWeight:700,letterSpacing:1,color:"var(--text-3)",textTransform:"uppercase"}}>{label}</span>
+    <div style={{position:"relative"}}>
+      <select value={value} onChange={e=>onChange(e.target.value)}
+        onFocus={()=>setF(true)} onBlur={()=>setF(false)}
+        style={{appearance:"none",background:"var(--white)",
+          border:`1.5px solid ${f?"var(--blue)":"var(--border)"}`,
+          boxShadow:f?"0 0 0 3px rgba(57,154,255,.12)":"none",
+          borderRadius:10,padding:"10px 38px 10px 14px",
+          fontFamily:"var(--font)",fontSize:13.5,fontWeight:600,
+          color:"var(--text-1)",cursor:"pointer",outline:"none",width:"100%",transition:"all .2s"}}>
+        {children}
+      </select>
+      <svg style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",color:"var(--blue)"}}
+        width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </div>
+  </div>;
+}
+function Dots(){
+  return <div style={{display:"flex",gap:7}}>
+    {[0,.15,.3].map((d,i)=><div key={i} style={{width:10,height:10,borderRadius:"50%",background:"var(--blue)",
+      animation:`bounce 1.2s ease-in-out ${d}s infinite`}}/>)}
+  </div>;
+}
+function Toast({msg,show}){
+  return <div style={{position:"fixed",bottom:30,left:"50%",
+    transform:show?"translateX(-50%) translateY(0)":"translateX(-50%) translateY(18px)",
+    background:"linear-gradient(135deg,#0a1628,#1a2d4a)",color:"#fff",
+    padding:"10px 24px",borderRadius:999,fontSize:13,fontWeight:600,
+    opacity:show?1:0,transition:"all .3s cubic-bezier(.34,1.56,.64,1)",
+    pointerEvents:"none",zIndex:9999,
+    boxShadow:"0 8px 32px rgba(10,22,40,.25),0 0 0 1px rgba(57,154,255,.2)"}}>
+    {msg}
+  </div>;
+}
+
+/* ── SVG icons as inline components ── */
+const IcoDoc = ()=><svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>;
+const IcoPaste = ({s=12})=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>;
+const IcoUpload = ({s=12})=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
+const IcoClear = ({s=12})=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+const IcoCopy = ({s=12})=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>;
+const IcoDown = ({s=12})=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
+
+/* ── App ── */
+function App(){
+  const {theme, toggleTheme} = useTheme();
+  const [text,setText]         = useState("");
+  const [summary,setSummary]   = useState("");
+  const [length,setLength]     = useState("2_paragraphs");
+  const [grade,setGrade]       = useState("grade8");
+  const [status,setStatus]     = useState("idle"); // idle|loading|result|error
+  const [errMsg,setErrMsg]     = useState("");
+  const [iWords,setIWords]     = useState(0);
+  const [oWords,setOWords]     = useState(0);
+  const [toast,setToast]       = useState({msg:"",show:false});
+  const fileRef = useRef();
+  const taRef   = useRef();
+  const tTimer  = useRef();
+
+  const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const charCount = text.length;
+
+  const showToast = useCallback((msg)=>{
+    clearTimeout(tTimer.current);
+    setToast({msg,show:true});
+    tTimer.current = setTimeout(()=>setToast(t=>({...t,show:false})),2700);
+  },[]);
+
+  const handlePaste = async()=>{
+    try{ const t=await navigator.clipboard.readText(); setText(t.slice(0,15000)); showToast("Pasted!"); }
+    catch{ showToast("Allow clipboard access"); }
+  };
+  const handleFile = e=>{
+    const f=e.target.files[0]; if(!f) return;
+    const ext=f.name.split(".").pop().toLowerCase();
+    if(!["txt","md","csv","html","xml","json","rtf","log"].includes(ext)){showToast("Unsupported file type");return;}
+    const r=new FileReader();
+    r.onload=ev=>{ setText(ev.target.result.slice(0,15000)); showToast(`Loaded: ${f.name}`); };
+    r.readAsText(f); e.target.value="";
+  };
+  const handleClear=()=>{ setText(""); setSummary(""); setStatus("idle"); showToast("Cleared"); };
+  const handleCopy=async()=>{
+    try{ await navigator.clipboard.writeText(summary); showToast("Copied!"); }
+    catch{ showToast("Could not copy"); }
+  };
+  const handlePDF=()=>{
+    if(!summary) return;
+    try{
+      const {jsPDF}=window.jspdf;
+      const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+      const m=20,pw=doc.internal.pageSize.getWidth(),ph=doc.internal.pageSize.getHeight(),mw=pw-m*2;
+      doc.setFont("helvetica","bold"); doc.setFontSize(17); doc.setTextColor(10,22,40);
+      doc.text("Text Summary",m,m+6);
+      doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(143,163,187);
+      doc.text(`Text Summarizer  •  ${length.replace(/_/g," ")}  •  ${GRADE_LABELS[grade]||grade}  •  ${new Date().toLocaleDateString()}`,m,m+14);
+      doc.setDrawColor(219,234,254); doc.setLineWidth(.4); doc.line(m,m+18,pw-m,m+18);
+      doc.setFont("helvetica","normal"); doc.setFontSize(11); doc.setTextColor(10,22,40);
+      const lines=doc.splitTextToSize(summary,mw); let y=m+26;
+      lines.forEach(l=>{ if(y>ph-m){doc.addPage();y=m;} doc.text(l,m,y); y+=7; });
+      doc.setFontSize(8); doc.setTextColor(143,163,187);
+      doc.text("Text Summarizer — Powered by OpenAI",m,ph-10);
+      doc.save("summary.pdf"); showToast("PDF downloaded!");
+    } catch{ showToast("PDF generation failed"); }
+  };
+
+  const handleSummarize = async()=>{
+    const t=text.trim();
+    if(!t){showToast("Please enter some text first");taRef.current?.focus();return;}
+    if(t.length>15000){showToast("Text exceeds 15,000 characters");return;}
+    setStatus("loading"); setIWords(wordCount);
+    try{
+      const res=await fetch(`${API}/api/summarize`,{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({text:t,length,grade_level:grade,
+          length_instruction:LENGTH_MAP[length],grade_instruction:GRADE_INSTR[grade]}),
+      });
+      const data=await res.json();
+      if(!res.ok) throw new Error(data.detail||"Something went wrong");
+      let fmt=data.summary;
+      if(length==="bullets"){
+        fmt=data.summary.split("\n").filter(l=>l.trim())
+          .map(l=>`• ${l.replace(/^[-•*]\s*/,"")}`).join("\n");
+      }
+      setSummary(fmt); setOWords(data.output_words); setStatus("result");
+    } catch(e){ setErrMsg(e.message); setStatus("error"); }
+  };
+
+  /* ── Render ── */
+  return <div style={{height:"100vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+
+    {/* Header */}
+    <header style={{background:"var(--card)",backdropFilter:"blur(20px)",
+      borderBottom:"1.5px solid var(--border)",flexShrink:0,zIndex:100,transition:"all .3s ease"}}>
+      <div style={{maxWidth:1200,margin:"0 auto",padding:"0 28px",height:64,
+        display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:38,height:38,background:"linear-gradient(135deg,var(--blue),var(--blue-dark))",
+            borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",
+            boxShadow:"0 4px 14px rgba(57,154,255,.4)",transition:"all .3s ease"}}>
+            <IcoDoc/>
+          </div>
+          <span style={{fontSize:16,fontWeight:800,color:"var(--text-1)",letterSpacing:-.3,transition:"color .3s ease"}}>Text Summarizer</span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,
+            background:"var(--blue-soft)",border:"1.5px solid var(--blue-mid)",
+            borderRadius:999,padding:"5px 14px",fontSize:11,fontWeight:700,
+            color:"var(--blue)",letterSpacing:.6,textTransform:"uppercase",transition:"all .3s ease"}}>
+            ✦ Powered by OpenAI
+          </div>
+          <button onClick={toggleTheme}
+            style={{display:"flex",alignItems:"center",gap:6,
+              background:"var(--blue-soft)",border:"1.5px solid var(--blue-mid)",
+              borderRadius:999,padding:"5px 14px",fontSize:11,fontWeight:700,
+              color:"var(--blue)",letterSpacing:.6,textTransform:"uppercase",
+              cursor:"pointer",transition:"all .3s ease"}}>
+            {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
+          </button>
+        </div>
+      </div>
+    </header>
+
+    {/* Main — this is the only scrollable area */}
+    <main style={{flex:1,overflowY:"auto",minHeight:0}}>
+    <div style={{maxWidth:1200,margin:"0 auto",padding:"16px 20px 40px",width:"100%"}}>
+
+      {/* Options bar */}
+      <div style={{background:"var(--card)",border:"1.5px solid var(--border)",borderRadius:16,
+        padding:"18px 24px",display:"flex",gap:20,alignItems:"flex-end",flexWrap:"wrap",
+        marginBottom:14,boxShadow:"var(--shadow)",animation:"fadeUp .6s .1s ease both"}}>
+
+        {/* Length */}
+        <Select label="Summary Length" value={length} onChange={setLength} minW={210}>
+          <optgroup label="Paragraphs">
+            {["1_paragraph","2_paragraphs","3_paragraphs","4_paragraphs","5_paragraphs"].map(v=>
+              <option key={v} value={v}>{v.replace("_"," ").replace(/\b\w/g,c=>c.toUpperCase())}</option>)}
+          </optgroup>
+          <optgroup label="Other Formats">
+            <option value="bullets">Bullet Points</option>
+            <option value="notes">Notes Format</option>
+          </optgroup>
+        </Select>
+
+        {/* Grade */}
+        <Select label="Reading Level (Grade)" value={grade} onChange={setGrade} minW={185}>
+          <optgroup label="Select Grade">
+            {Object.entries(GRADE_LABELS).map(([v,l])=><option key={v} value={v}>{l}</option>)}
+          </optgroup>
+        </Select>
+
+        {/* Char / word count */}
+        <div style={{marginLeft:"auto",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2}}>
+          <span style={{fontSize:11,fontWeight:700,letterSpacing:1,color:"var(--text-3)",textTransform:"uppercase"}}>Input</span>
+          <span style={{fontSize:13,fontWeight:600,color:charCount>14000?"#ef4444":"var(--text-2)"}}>
+            {charCount.toLocaleString()} / 15,000 chars &nbsp;·&nbsp; {wordCount.toLocaleString()} words
+          </span>
+        </div>
+      </div>
+
+      {/* Editor grid */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 60px 1fr",
+        background:"var(--card)",border:"1.5px solid var(--border)",borderRadius:20,
+        boxShadow:"var(--shadow-lg)",overflow:"hidden",
+        animation:"fadeUp .6s .2s ease both",minHeight:620}}>
+
+        {/* ── Left ── */}
+        <div style={{display:"flex",flexDirection:"column",padding:"22px 24px"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <span style={{fontSize:11,fontWeight:700,letterSpacing:1,color:"var(--text-3)",textTransform:"uppercase"}}>Your Text</span>
+            <div style={{display:"flex",gap:6}}>
+              <SmallBtn onClick={handlePaste}><IcoPaste/> Paste</SmallBtn>
+              <SmallBtn onClick={()=>fileRef.current.click()}><IcoUpload/> File</SmallBtn>
+              <input ref={fileRef} type="file" accept=".txt,.md,.csv,.html,.xml,.json,.rtf,.log"
+                style={{display:"none"}} onChange={handleFile}/>
+              <SmallBtn onClick={handleClear}><IcoClear/> Clear</SmallBtn>
+            </div>
+          </div>
+          <textarea ref={taRef} value={text}
+            onChange={e=>{ if(e.target.value.length<=15000) setText(e.target.value); }}
+            onKeyDown={e=>{ if((e.ctrlKey||e.metaKey)&&e.key==="Enter") handleSummarize(); }}
+            onWheel={e=>e.stopPropagation()}
+            placeholder="Paste or type your text here… (Ctrl+Enter to summarize)"
+            style={{flex:1,width:"100%",resize:"none",border:"1.5px solid var(--border)",
+              borderRadius:12,padding:"16px 18px",fontFamily:"var(--font)",
+              fontSize:13.5,color:"var(--text-1)",lineHeight:1.8,
+              background:"#fafcff",outline:"none",minHeight:0,transition:"border-color .2s,box-shadow .2s"}}
+            onFocus={e=>{e.target.style.borderColor="var(--blue)";e.target.style.boxShadow="0 0 0 4px rgba(57,154,255,.1)";}}
+            onBlur={e=>{e.target.style.borderColor="var(--border)";e.target.style.boxShadow="none";}}
+          />
+        </div>
+
+        {/* ── Center button ── */}
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+          borderLeft:"1.5px solid var(--border)",borderRight:"1.5px solid var(--border)",
+          background:theme==="dark"?"linear-gradient(180deg,#1a2332,#253549)":"linear-gradient(180deg,var(--blue-soft),#f0f6ff)"}}>
+          <button onClick={handleSummarize} disabled={status==="loading"}
+            style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10,
+              background:status==="loading"
+                ?"linear-gradient(135deg,#93c5fd,#60a5fa)"
+                :"linear-gradient(135deg,var(--blue),var(--blue-dark))",
+              color:"white",border:"none",borderRadius:16,padding:"16px 13px",
+              cursor:status==="loading"?"not-allowed":"pointer",
+              boxShadow:status==="loading"?"none":"0 6px 24px rgba(57,154,255,.45)",
+              transition:"all .25s cubic-bezier(.34,1.56,.64,1)",
+              animation:status!=="loading"?"pulseRing 2.5s ease infinite":"none",fontFamily:"var(--font)"}}>
+            {status==="loading"
+              ? <div style={{width:18,height:18,borderRadius:"50%",border:"2.5px solid rgba(255,255,255,.4)",
+                  borderTopColor:"white",animation:"spin .7s linear infinite"}}/>
+              : <svg width={18} height={18} viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
+            <span style={{fontSize:9.5,fontWeight:800,letterSpacing:1.4,textTransform:"uppercase",
+              writingMode:"vertical-lr",transform:"rotate(180deg)"}}>
+              {status==="loading"?"Working":"Summarize"}
+            </span>
+          </button>
+        </div>
+
+        {/* ── Right ── */}
+        <div style={{display:"flex",flexDirection:"column",padding:"22px 24px"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <span style={{fontSize:11,fontWeight:700,letterSpacing:1,color:"var(--text-3)",textTransform:"uppercase"}}>AI Summary</span>
+            {status==="result" &&
+              <div style={{display:"flex",gap:6,animation:"slideIn .3s ease"}}>
+                <SmallBtn onClick={handleCopy}><IcoCopy/> Copy</SmallBtn>
+                <SmallBtn onClick={handlePDF} green><IcoDown/> PDF</SmallBtn>
+              </div>}
+          </div>
+
+          {/* idle */}
+          {status==="idle" &&
+            <div style={{flex:1,border:`1.5px dashed ${theme==="dark"?"#0f766e":"var(--blue-mid)"}`,borderRadius:12,
+              display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+              gap:12,background:theme==="dark"?"linear-gradient(135deg,#1a2332,#253549)":"linear-gradient(135deg,#f8fbff,#eef5ff)",minHeight:520,padding:24,textAlign:"center"}}>
+              <div style={{width:52,height:52,borderRadius:14,
+                background:"linear-gradient(135deg,var(--blue-soft),var(--blue-mid))",
+                display:"flex",alignItems:"center",justifyContent:"center",marginBottom:4}}>
+                <svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke="var(--blue)" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+              </div>
+              <p style={{fontSize:14,fontWeight:600,color:"var(--text-1)"}}>Your summary will appear here</p>
+              <p style={{fontSize:12.5,color:"var(--text-2)",lineHeight:1.6}}>
+                Paste text on the left and click <strong style={{color:"var(--blue)"}}>Summarize</strong>
+              </p>
+            </div>}
+
+          {/* loading */}
+          {status==="loading" &&
+            <div style={{flex:1,border:"1.5px solid var(--border)",borderRadius:12,
+              display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+              gap:16,minHeight:520,background:theme==="dark"?"linear-gradient(135deg,#1a2332,#253549)":"linear-gradient(135deg,#f8fbff,#eef5ff)"}}>
+              <Dots/>
+              <p style={{fontSize:13,color:"var(--text-3)",fontWeight:500}}>Generating summary…</p>
+            </div>}
+
+          {/* result */}
+          {status==="result" && <>
+            <div onWheel={e=>e.stopPropagation()} style={{flex:1,border:"1.5px solid var(--border)",borderRadius:12,
+              padding:"18px 20px",fontSize:13.5,color:"var(--text-1)",lineHeight:1.82,
+              background:theme==="dark"?"#1a2332":"#fafcff",overflowY:"auto",
+              maxHeight:580,minHeight:520,animation:"fadeUp .4s ease",
+              scrollbarWidth:"thin",scrollbarColor:`${theme==="dark"?"#0f766e":"var(--blue-mid)"} transparent`}}>
+              {summary.split("\n").map((line,i)=>{
+                const isHeading = /^[A-Z][^a-z\n]{0,2}[\w\s,&\-()]{0,60}:/.test(line.trim()) || /^\d+\.\s+[A-Z]/.test(line.trim());
+                const isBullet = /^[•\-*]\s/.test(line.trim());
+                if(!line.trim()) return <div key={i} style={{height:8}}/>;
+                if(isHeading) return <div key={i} style={{fontWeight:800,fontSize:14,color:"var(--blue-dark)",marginTop:i===0?0:14,marginBottom:3,letterSpacing:.1}}>{line}</div>;
+                if(isBullet) return <div key={i} style={{paddingLeft:14,marginBottom:3,color:"var(--text-1)"}}>{line}</div>;
+                return <div key={i} style={{marginBottom:4,color:"var(--text-1)"}}>{line}</div>;
+              })}
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10,
+              fontSize:12,color:"var(--text-3)",fontWeight:600}}>
+              <span style={{color:"var(--text-2)"}}>{iWords.toLocaleString()} words</span>
+              <span style={{color:"var(--blue)",fontSize:15}}>→</span>
+              <span style={{color:"var(--blue)",fontWeight:700}}>{oWords.toLocaleString()} words</span>
+              <span style={{fontWeight:400}}>reduced</span>
+            </div>
+          </>}
+
+          {/* error */}
+          {status==="error" &&
+            <div style={{flex:1,border:`1.5px solid ${theme==="dark"?"#7f1d1d":"#fecaca"}`,borderRadius:12,
+              padding:"24px 20px",minHeight:520,background:theme==="dark"?"#7f1d1d":"#fff8f8",
+              animation:"fadeUp .4s ease",display:"flex",flexDirection:"column",justifyContent:"center",gap:14}}>
+              <p style={{color:theme==="dark"?"#fee2e2":"#ef4444",fontWeight:700,fontSize:14}}>⚠ Error: {errMsg}</p>
+              <p style={{fontSize:12.5,color:theme==="dark"?"#fee2e2":"var(--text-1)",lineHeight:1.7}}>
+                Make sure your backend is running at{" "}
+                <code style={{background:theme==="dark"?"#5f2020":"#f1f5f9",padding:"2px 8px",borderRadius:5,fontSize:12,color:theme==="dark"?"#fee2e2":"var(--text-1)"}}>
+                  {API}
+                </code>
+              </p>
+            </div>}
+        </div>
+      </div>
+    </div>
+    </main>
+
+    <Toast msg={toast.msg} show={toast.show}/>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
