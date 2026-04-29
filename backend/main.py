@@ -174,9 +174,11 @@ async def extract_url(payload: dict):
 # ── Frontend serving ──
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
+NO_CACHE_HEADERS = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
+
 @app.get("/")
 def serve_index():
-    return FileResponse(FRONTEND_DIR / "index.html")
+    return FileResponse(FRONTEND_DIR / "index.html", headers=NO_CACHE_HEADERS)
 
 if __name__ == "__main__":
     import uvicorn
