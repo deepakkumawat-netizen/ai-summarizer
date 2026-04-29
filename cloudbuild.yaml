@@ -22,6 +22,11 @@ steps:
       - '8080'
       - '--memory'
       - '512Mi'
+      - '--set-env-vars'
+      - 'OPENAI_API_KEY=$_OPENAI_API_KEY'
+
+substitutions:
+  _OPENAI_API_KEY: ''
 
 images:
   - 'gcr.io/$PROJECT_ID/ai-summarizer'
