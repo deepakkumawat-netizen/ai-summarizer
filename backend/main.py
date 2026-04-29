@@ -1,11 +1,11 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from openai import OpenAI
 from dotenv import load_dotenv
-import os
+import os, io, re
 from typing import Optional
 from pathlib import Path
 
@@ -27,6 +27,7 @@ class SummarizeRequest(BaseModel):
     text: str
     length: str = "2_paragraphs"
     grade_level: str = "grade8"
+    language: str = "English"
     length_instruction: Optional[str] = None
     grade_instruction: Optional[str] = None
 
@@ -37,26 +38,26 @@ LENGTH_INSTRUCTIONS = {
     "4_paragraphs": "Summarize in exactly 4 paragraphs.",
     "5_paragraphs": "Summarize in exactly 5 paragraphs.",
     "bullets":      "Summarize as a list of concise bullet points (use - for each point). Include 5–8 bullets.",
-    "notes":        "Summarize in notes format: use short labeled section headings followed by brief bullet points under each, like structured study notes. Make it easy to review quickly.",
-    "short":   "Summarize in 2–3 sentences only. Be extremely concise.",
-    "medium":  "Summarize in 1–2 paragraphs (5–8 sentences). Capture key ideas.",
-    "long":    "Write a detailed summary in 3–4 paragraphs covering all main points.",
+    "notes":        "Summarize in notes format: use short labeled section headings followed by brief bullet points under each, like structured study notes.",
+    "short":        "Summarize in 2–3 sentences only. Be extremely concise.",
+    "medium":       "Summarize in 1–2 paragraphs (5–8 sentences). Capture key ideas.",
+    "long":         "Write a detailed summary in 3–4 paragraphs covering all main points.",
 }
 
 GRADE_INSTRUCTIONS = {
-    "k":       "Write for a Kindergarten student. Use very simple words and very short sentences.",
-    "grade1":  "Write for a Grade 1 student. Use simple words a 6-year-old would understand.",
-    "grade2":  "Write for a Grade 2 student. Keep sentences short and vocabulary basic.",
-    "grade3":  "Write for a Grade 3 student. Use simple but complete sentences.",
-    "grade4":  "Write for a Grade 4 student. Use clear language appropriate for a 9-10 year old.",
-    "grade5":  "Write for a Grade 5 student. Use straightforward language for a 10-11 year old.",
-    "grade6":  "Write for a Grade 6 student. Use moderately simple language for an 11-12 year old.",
-    "grade7":  "Write for a Grade 7 student. Use clear language for a 12-13 year old.",
-    "grade8":  "Write for a Grade 8 student. Use accessible language for a 13-14 year old.",
-    "grade9":  "Write for a Grade 9 student. Use standard academic language for a 14-15 year old.",
-    "grade10": "Write for a Grade 10 student. Use confident academic language for a 15-16 year old.",
-    "grade11": "Write for a Grade 11 student. Use mature academic language for a 16-17 year old.",
-    "grade12": "Write for a Grade 12 student. Use advanced language appropriate for a 17-18 year old.",
+    "k":          "Write for a Kindergarten student. Use very simple words and very short sentences.",
+    "grade1":     "Write for a Grade 1 student. Use simple words a 6-year-old would understand.",
+    "grade2":     "Write for a Grade 2 student. Keep sentences short and vocabulary basic.",
+    "grade3":     "Write for a Grade 3 student. Use simple but complete sentences.",
+    "grade4":     "Write for a Grade 4 student. Use clear language appropriate for a 9-10 year old.",
+    "grade5":     "Write for a Grade 5 student. Use straightforward language for a 10-11 year old.",
+    "grade6":     "Write for a Grade 6 student. Use moderately simple language for an 11-12 year old.",
+    "grade7":     "Write for a Grade 7 student. Use clear language for a 12-13 year old.",
+    "grade8":     "Write for a Grade 8 student. Use accessible language for a 13-14 year old.",
+    "grade9":     "Write for a Grade 9 student. Use standard academic language for a 14-15 year old.",
+    "grade10":    "Write for a Grade 10 student. Use confident academic language for a 15-16 year old.",
+    "grade11":    "Write for a Grade 11 student. Use mature academic language for a 16-17 year old.",
+    "grade12":    "Write for a Grade 12 student. Use advanced language appropriate for a 17-18 year old.",
     "elementary": "Use very simple words and short sentences suitable for a 3rd-5th grade student.",
     "middle":     "Use clear, accessible language for a middle school student.",
     "high":       "Use standard academic language appropriate for a high school student.",
@@ -73,6 +74,7 @@ def summarize(req: SummarizeRequest):
 
     length_note = req.length_instruction or LENGTH_INSTRUCTIONS.get(req.length, LENGTH_INSTRUCTIONS["2_paragraphs"])
     grade_note  = req.grade_instruction  or GRADE_INSTRUCTIONS.get(req.grade_level, GRADE_INSTRUCTIONS["grade8"])
+    lang_note   = f"Write the entire summary in {req.language}." if req.language != "English" else ""
 
     system_prompt = (
         "You are a world-class text summarizer. Follow these rules strictly:\n"
@@ -90,7 +92,8 @@ def summarize(req: SummarizeRequest):
         f"Summarize the text below.\n\n"
         f"FORMAT: {length_note}\n"
         f"READING LEVEL: {grade_note}\n"
-        f"RULES: No repetition. No filler phrases like 'it is important to note'. Be specific and precise.\n\n"
+        + (f"LANGUAGE: {lang_note}\n" if lang_note else "")
+        + f"RULES: No repetition. No filler phrases. Be specific and precise.\n\n"
         f"TEXT:\n{req.text}"
     )
 
@@ -112,6 +115,61 @@ def summarize(req: SummarizeRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
+
+
+@app.post("/api/extract-pdf")
+async def extract_pdf(file: UploadFile = File(...)):
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
+    try:
+        import pdfplumber
+        content = await file.read()
+        text_parts = []
+        with pdfplumber.open(io.BytesIO(content)) as pdf:
+            for page in pdf.pages[:30]:
+                t = page.extract_text()
+                if t:
+                    text_parts.append(t)
+        text = "\n".join(text_parts).strip()
+        if not text:
+            raise HTTPException(status_code=400, detail="Could not extract text from PDF. The file may be image-based.")
+        return {"text": text[:15000], "pages": len(pdf.pages) if hasattr(pdf, 'pages') else 0}
+    except ImportError:
+        raise HTTPException(status_code=500, detail="PDF processing library not available.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF extraction failed: {str(e)}")
+
+
+@app.post("/api/extract-url")
+async def extract_url(payload: dict):
+    url = payload.get("url", "").strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="URL is required.")
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+        headers = {"User-Agent": "Mozilla/5.0 (compatible; TextSummarizer/1.0)"}
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        for tag in soup(["script", "style", "nav", "footer", "header", "aside", "iframe", "noscript"]):
+            tag.decompose()
+        # Try article/main first, fallback to body
+        main = soup.find("article") or soup.find("main") or soup.find("body")
+        text = main.get_text(separator="\n") if main else soup.get_text(separator="\n")
+        # Clean up whitespace
+        lines = [l.strip() for l in text.splitlines() if len(l.strip()) > 40]
+        text = "\n".join(lines)
+        if not text:
+            raise HTTPException(status_code=400, detail="Could not extract readable text from this URL.")
+        return {"text": text[:15000], "title": soup.title.string.strip() if soup.title else url}
+    except ImportError:
+        raise HTTPException(status_code=500, detail="URL processing library not available.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"URL extraction failed: {str(e)}")
+
 
 # ── Frontend serving ──
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
