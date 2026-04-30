@@ -6,3 +6,4 @@ pydantic
 pdfplumber
 requests
 beautifulsoup4
+python-multipart
