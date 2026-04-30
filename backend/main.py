@@ -21,9 +21,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
-OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
-client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL   = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 class SummarizeRequest(BaseModel):
     text: str
@@ -101,7 +101,7 @@ def summarize(req: SummarizeRequest):
 
     try:
         response = client.chat.completions.create(
-            model=OLLAMA_MODEL,
+            model=OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user",   "content": user_prompt},
