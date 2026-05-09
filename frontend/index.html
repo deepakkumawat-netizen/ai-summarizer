@@ -308,7 +308,7 @@ function App(){
       const lines=doc.splitTextToSize(summary,mw); let y=m+26;
       lines.forEach(l=>{ if(y>ph-m){doc.addPage();y=m;} doc.text(l,m,y); y+=7; });
       doc.setFontSize(8); doc.setTextColor(143,163,187);
-      doc.text("Text Summarizer — Powered by OpenAI",m,ph-10);
+      doc.text("Text Summarizer — Powered by Groq",m,ph-10);
       doc.save("summary.pdf"); showToast("PDF downloaded!");
     } catch{ showToast("PDF generation failed"); }
   };
@@ -365,7 +365,7 @@ function App(){
           <div style={{display:"flex",alignItems:"center",gap:6,background:"var(--blue-soft)",
             border:"1.5px solid var(--blue-mid)",borderRadius:999,padding:"5px 14px",
             fontSize:11,fontWeight:700,color:"var(--blue)",letterSpacing:.6,textTransform:"uppercase"}}>
-            ✦ Powered by OpenAI
+            ✦ Powered by Groq
           </div>
           <button onClick={()=>setShowHistory(h=>!h)}
             style={{display:"flex",alignItems:"center",gap:6,background:showHistory?"var(--blue)":"var(--blue-soft)",
