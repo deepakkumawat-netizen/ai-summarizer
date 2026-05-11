@@ -79,7 +79,16 @@ def summarize(req: SummarizeRequest):
     lang_note   = f"Write the entire summary in {req.language}." if req.language != "English" else ""
 
     system_prompt = (
-        "You are a world-class text summarizer. Follow these rules strictly:\n"
+        "You are a world-class text summarizer for an educational platform used by teachers and students.\n\n"
+        "CONTENT SAFETY CHECK (do this first):\n"
+        "If the text contains ANY of the following, respond with EXACTLY the word CONTENT_BLOCKED and nothing else:\n"
+        "- Pornographic or sexually explicit material\n"
+        "- Graphic violence, gore, or self-harm instructions\n"
+        "- Hate speech or content targeting people by race, religion, gender, sexuality\n"
+        "- Instructions for illegal activities (drug manufacturing, weapons, hacking for harm, etc.)\n"
+        "- Adult content not suitable for an educational setting\n\n"
+        "If the content is appropriate (educational, academic, news, science, history, literature, business, technology, etc.), "
+        "summarize it following these rules:\n"
         "- Only include information present in the original text — never add outside knowledge\n"
         "- Never repeat the same idea twice, even in different words\n"
         "- Use active voice and specific, concrete language — avoid vague filler phrases\n"
@@ -110,13 +119,23 @@ def summarize(req: SummarizeRequest):
             max_tokens=1024,
         )
         summary = response.choices[0].message.content.strip()
+
+        # Check if AI flagged content as inappropriate
+        if summary.upper().startswith("CONTENT_BLOCKED"):
+            raise HTTPException(
+                status_code=422,
+                detail="INAPPROPRIATE_CONTENT: This content is not suitable for educational use. Please only summarize appropriate study materials such as textbooks, articles, research papers, or educational content."
+            )
+
         return {
             "summary":      summary,
             "input_words":  len(req.text.split()),
             "output_words": len(summary.split()),
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"API error: {str(e)}")
 
 
 @app.post("/api/extract-pdf")

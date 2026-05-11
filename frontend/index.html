@@ -228,11 +228,15 @@ function App(){
   const [toast, setToast]         = useState({msg:"",show:false});
   const [showHistory, setShowHistory] = useState(false);
   const [extracting, setExtracting]   = useState(false);
+  const [disclaimer, setDisclaimer]   = useState(false);
+  const [disclaimerSecs, setDisclaimerSecs] = useState(5);
 
   const fileRef  = useRef();
   const pdfRef   = useRef();
   const taRef    = useRef();
   const tTimer   = useRef();
+  const dTimer   = useRef();
+  const dCount   = useRef();
 
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
   const charCount = text.length;
@@ -337,7 +341,19 @@ function App(){
         length, grade, language,
         words: data.output_words
       });
-    } catch(e){ setErrMsg(e.message); setStatus("error"); }
+    } catch(e){
+      if(e.message && e.message.startsWith("INAPPROPRIATE_CONTENT:")){
+        setStatus("idle");
+        setDisclaimer(true);
+        setDisclaimerSecs(5);
+        clearTimeout(dTimer.current);
+        clearInterval(dCount.current);
+        dCount.current = setInterval(()=>setDisclaimerSecs(s=>{ if(s<=1){ clearInterval(dCount.current); return 0; } return s-1; }),1000);
+        dTimer.current = setTimeout(()=>{ setDisclaimer(false); clearInterval(dCount.current); },5000);
+      } else {
+        setErrMsg(e.message); setStatus("error");
+      }
+    }
   };
 
   const loadFromHistory = (item) => {
@@ -347,6 +363,36 @@ function App(){
   };
 
   return <div style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
+
+    {/* Inappropriate Content Disclaimer */}
+    {disclaimer && (
+      <div style={{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",
+        justifyContent:"center",background:"rgba(0,0,0,0.55)",animation:"fadeUp .2s ease"}}>
+        <div style={{background:"var(--card)",borderRadius:20,padding:"36px 40px",maxWidth:460,width:"90%",
+          textAlign:"center",boxShadow:"0 24px 80px rgba(0,0,0,0.3)",
+          border:"2px solid #ef4444",animation:"fadeUp .25s ease"}}>
+          <div style={{fontSize:52,marginBottom:12}}>🚫</div>
+          <div style={{fontSize:20,fontWeight:800,color:"#dc2626",marginBottom:10,letterSpacing:-.3}}>
+            Inappropriate Content Detected
+          </div>
+          <div style={{fontSize:14,color:"var(--text-2)",lineHeight:1.7,marginBottom:20}}>
+            This tool is designed for <strong>educational use only</strong>.<br/>
+            Please summarize appropriate study materials such as textbooks, articles, research papers, or academic content.<br/><br/>
+            <span style={{color:"#dc2626",fontWeight:700}}>Pornographic, violent, hateful, or illegal content is not allowed.</span>
+          </div>
+          <div style={{fontSize:12,color:"var(--text-3)",marginBottom:16}}>
+            This message will close in <strong style={{color:"#dc2626"}}>{disclaimerSecs}s</strong>
+          </div>
+          <button onClick={()=>{setDisclaimer(false);clearTimeout(dTimer.current);clearInterval(dCount.current);}}
+            style={{background:"#dc2626",color:"white",border:"none",borderRadius:10,padding:"10px 28px",
+              fontWeight:700,fontSize:14,cursor:"pointer",transition:"background .2s"}}
+            onMouseEnter={e=>e.target.style.background="#b91c1c"}
+            onMouseLeave={e=>e.target.style.background="#dc2626"}>
+            Dismiss
+          </button>
+        </div>
+      </div>
+    )}
 
     {/* Header */}
     <header style={{background:"var(--card)",backdropFilter:"blur(20px)",
