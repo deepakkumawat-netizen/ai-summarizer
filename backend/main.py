@@ -67,12 +67,38 @@ GRADE_INSTRUCTIONS = {
     "general":    "Use clear, accessible language for a general adult audience.",
 }
 
+BLOCKED_KEYWORDS = [
+    "pornography","pornographic","pornographer","pornographers",
+    "porn ","porn,","porn.","porn\n","/porn","#porn",
+    "sexually explicit","sex video","sex tape","nude video",
+    "child sexual","child pornography","csam","child abuse material",
+    "rape video","rape porn","incest","bestiality",
+    "hentai","xxx ","xxx.","xxx\n",
+    "onlyfans","camgirl","camboy","strip club","escort service",
+    "sex worker","prostitution","brothel",
+    "erectile dysfunction medication","penis enlargement",
+    "drug trafficking","how to make meth","how to make bomb",
+    "how to synthesize","drug manufacturing","crystal meth recipe",
+    "kill yourself","suicide method","self harm method",
+]
+
+def _keyword_blocked(text: str) -> bool:
+    t = text.lower()
+    return any(kw in t for kw in BLOCKED_KEYWORDS)
+
 @app.post("/api/summarize")
 def summarize(req: SummarizeRequest):
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty.")
     if len(req.text) > 15000:
         raise HTTPException(status_code=400, detail="Text too long. Max 15,000 characters.")
+
+    # Fast keyword pre-filter — blocks before any AI call
+    if _keyword_blocked(req.text):
+        raise HTTPException(
+            status_code=422,
+            detail="INAPPROPRIATE_CONTENT: This content is not suitable for educational use. Please only summarize appropriate study materials such as textbooks, articles, research papers, or educational content."
+        )
 
     length_note = req.length_instruction or LENGTH_INSTRUCTIONS.get(req.length, LENGTH_INSTRUCTIONS["2_paragraphs"])
     grade_note  = req.grade_instruction  or GRADE_INSTRUCTIONS.get(req.grade_level, GRADE_INSTRUCTIONS["grade8"])
