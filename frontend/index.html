@@ -208,9 +208,95 @@ const IcoDown = ({s=12})=><svg width={s} height={s} viewBox="0 0 24 24" fill="no
 const IcoHistory=({s=14})=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
 const IcoTrash =({s=12})=><svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>;
 
+function Landing({onEnter, theme, toggleTheme}){
+  const [auth, setAuth] = useState(null);
+  const [form, setForm] = useState({name:"",email:"",password:""});
+  const [err, setErr] = useState("");
+  const isDark = theme==='dark';
+  const FEATURES = [
+    {icon:"📄",c:"#399aff",t:"Summarize Anything",d:"Paste text, upload a PDF, or drop a URL — get a clean summary in seconds."},
+    {icon:"🎚️",c:"#22c55e",t:"Choose the Length",d:"From a 1-paragraph gist to detailed notes — pick exactly how long you want it."},
+    {icon:"🎓",c:"#a855f7",t:"Grade-Calibrated",d:"Summaries written at the right reading level, from Kindergarten to college."},
+    {icon:"🌍",c:"#f59e0b",t:"Any Language",d:"Get your summary back in the language you choose."},
+  ];
+  const ip = {width:"100%",padding:"11px 13px",borderRadius:10,border:"1.5px solid var(--border)",background:"var(--bg)",color:"var(--text-1)",fontSize:14,outline:"none",boxSizing:"border-box"};
+  const submit = (e)=>{
+    e.preventDefault(); setErr("");
+    if(auth==='signup'){
+      if(!form.name.trim()||!form.email.trim()){setErr("Name and email are required.");return;}
+      if(form.password.length<8){setErr("Password must be at least 8 characters.");return;}
+      localStorage.setItem("ais-user",JSON.stringify({name:form.name,email:form.email,password:btoa(form.password)}));
+      onEnter();
+    } else {
+      const u=JSON.parse(localStorage.getItem("ais-user")||"null");
+      if(!u){setErr("No account found. Please sign up first.");return;}
+      const id=form.email.trim().toLowerCase();
+      if(id!==(u.email||"").toLowerCase()&&id!==(u.name||"").toLowerCase()){setErr("Account not found.");return;}
+      if(u.password&&atob(u.password)!==form.password){setErr("Wrong password.");return;}
+      onEnter();
+    }
+  };
+  return <div style={{minHeight:"100vh",background:"var(--bg)",color:"var(--text-1)"}}>
+    <header style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 6vw",borderBottom:"1.5px solid var(--border)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <div style={{width:38,height:38,borderRadius:10,background:"var(--blue)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:20}}>📄</div>
+        <span style={{fontSize:20,fontWeight:800}}>AI <span style={{color:"var(--blue)"}}>Summarizer</span></span>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <button onClick={toggleTheme} title="Toggle theme" style={{width:40,height:40,borderRadius:10,border:"1.5px solid var(--border)",background:"var(--card)",color:"var(--text-1)",cursor:"pointer",fontSize:18}}>{isDark?"☀️":"🌙"}</button>
+        <button onClick={()=>setAuth("login")} style={{padding:"10px 18px",borderRadius:10,border:"1.5px solid var(--border)",background:"var(--card)",color:"var(--text-1)",fontWeight:700,fontSize:14,cursor:"pointer"}}>Log In</button>
+        <button onClick={()=>setAuth("signup")} style={{padding:"10px 22px",borderRadius:10,border:"none",background:"var(--blue)",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer"}}>Sign Up Free</button>
+      </div>
+    </header>
+    <section style={{textAlign:"center",padding:"64px 6vw 40px",maxWidth:840,margin:"0 auto"}}>
+      <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 14px",borderRadius:100,background:"var(--blue-dim,rgba(57,154,255,.12))",color:"var(--blue)",fontWeight:700,fontSize:13,marginBottom:22}}>
+        <span style={{width:8,height:8,borderRadius:"50%",background:"var(--blue)"}}/> Text · PDF · URL
+      </div>
+      <h1 style={{fontSize:"clamp(34px,5vw,54px)",fontWeight:800,lineHeight:1.1,margin:"0 0 18px"}}>Long reads,<br/><span style={{color:"var(--blue)"}}>short summaries.</span></h1>
+      <p style={{fontSize:"clamp(15px,2vw,18px)",color:"var(--text-2)",maxWidth:600,margin:"0 auto 30px",lineHeight:1.6}}>Turn any article, document or webpage into a clear, grade-appropriate summary — choose the length, language and reading level.</p>
+      <div style={{display:"flex",gap:14,justifyContent:"center",flexWrap:"wrap"}}>
+        <button onClick={()=>setAuth("signup")} style={{padding:"14px 30px",borderRadius:12,border:"none",background:"var(--blue)",color:"#fff",fontWeight:700,fontSize:16,cursor:"pointer"}}>Get Started Free →</button>
+        <button onClick={onEnter} style={{padding:"14px 30px",borderRadius:12,border:"1.5px solid var(--border)",background:"var(--card)",color:"var(--text-1)",fontWeight:700,fontSize:16,cursor:"pointer"}}>Try it now</button>
+      </div>
+    </section>
+    <section style={{maxWidth:1000,margin:"0 auto",padding:"20px 6vw 56px"}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(230px,1fr))",gap:18}}>
+        {FEATURES.map(f=>(
+          <div key={f.t} style={{background:"var(--card)",border:"1.5px solid var(--border)",borderRadius:16,padding:22,boxShadow:"var(--shadow)"}}>
+            <div style={{width:48,height:48,borderRadius:13,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,background:f.c+"1a",marginBottom:14}}>{f.icon}</div>
+            <h3 style={{fontSize:16,fontWeight:700,margin:"0 0 7px"}}>{f.t}</h3>
+            <p style={{fontSize:13.5,color:"var(--text-2)",lineHeight:1.5,margin:0}}>{f.d}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+    <footer style={{borderTop:"1.5px solid var(--border)",padding:"24px 6vw",textAlign:"center",color:"var(--text-3)",fontSize:13}}>
+      <span style={{display:"inline-flex",alignItems:"center",gap:8}}><span style={{width:8,height:8,borderRadius:"50%",background:"#22c55e"}}/> Powered by Codevidhya</span>
+    </footer>
+    {auth && <div onClick={()=>setAuth(null)} style={{position:"fixed",inset:0,zIndex:1000,background:"rgba(0,0,0,.5)",backdropFilter:"blur(3px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:420,background:"var(--card)",borderRadius:18,border:"1.5px solid var(--border)",overflow:"hidden",boxShadow:"var(--shadow)"}}>
+        <div style={{background:"var(--blue)",padding:"20px 24px",color:"#fff",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div><h2 style={{margin:0,fontSize:20,fontWeight:800}}>{auth==='signup'?"Create your account":"Welcome back"}</h2>
+          <p style={{margin:"4px 0 0",fontSize:13,opacity:.9}}>{auth==='signup'?"Start summarizing for free":"Log in to continue"}</p></div>
+          <button onClick={()=>setAuth(null)} style={{background:"rgba(255,255,255,.2)",border:"none",color:"#fff",width:30,height:30,borderRadius:"50%",cursor:"pointer",fontSize:16}}>✕</button>
+        </div>
+        <form onSubmit={submit} style={{padding:"22px 24px",display:"flex",flexDirection:"column",gap:14}}>
+          {err && <div style={{background:"#ef444418",border:"1px solid #ef444455",color:"#ef4444",padding:"9px 12px",borderRadius:9,fontSize:13}}>{err}</div>}
+          {auth==='signup' && <div><label style={{fontSize:12,fontWeight:700,color:"var(--text-2)"}}>Full Name</label><input style={ip} value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Your name"/></div>}
+          <div><label style={{fontSize:12,fontWeight:700,color:"var(--text-2)"}}>{auth==='signup'?"Email":"Email or Name"}</label><input style={ip} value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder={auth==='signup'?"you@email.com":"email or name"}/></div>
+          <div><label style={{fontSize:12,fontWeight:700,color:"var(--text-2)"}}>Password</label><input type="password" style={ip} value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder={auth==='signup'?"At least 8 characters":"Your password"}/></div>
+          <button type="submit" style={{marginTop:4,padding:"12px",borderRadius:10,border:"none",background:"var(--blue)",color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer"}}>{auth==='signup'?"Create Account":"Log In"}</button>
+          <p style={{textAlign:"center",fontSize:13,color:"var(--text-2)",margin:0}}>{auth==='signup'?"Already have an account? ":"Don't have an account? "}<button type="button" onClick={()=>setAuth(auth==='signup'?'login':'signup')} style={{background:"none",border:"none",color:"var(--blue)",fontWeight:700,cursor:"pointer",fontSize:13}}>{auth==='signup'?"Log In":"Sign Up"}</button></p>
+        </form>
+      </div>
+    </div>}
+  </div>;
+}
+
 /* Main App */
 function App(){
   const {theme, toggleTheme} = useTheme();
+  const [entered, setEntered] = useState(()=>!!localStorage.getItem("ais-user"));
   const {history, addToHistory, clearHistory, deleteItem} = useHistory();
 
   const [inputMode, setInputMode] = useState("text"); // text|pdf|url
@@ -361,6 +447,8 @@ function App(){
     setLength(item.length); setGrade(item.grade); setLanguage(item.language||"English");
     setOWords(item.words||0); setShowHistory(false); showToast("Loaded from history");
   };
+
+  if(!entered) return <Landing onEnter={()=>setEntered(true)} theme={theme} toggleTheme={toggleTheme}/>;
 
   return <div style={{minHeight:"100vh",display:"flex",flexDirection:"column"}}>
 
