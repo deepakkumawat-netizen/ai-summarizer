@@ -248,15 +248,24 @@ function Landing({onEnter, theme, toggleTheme}){
         <button onClick={()=>setAuth("signup")} style={{padding:"10px 22px",borderRadius:10,border:"none",background:"var(--blue)",color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer"}}>Sign Up Free</button>
       </div>
     </header>
-    <section style={{textAlign:"center",padding:"64px 6vw 40px",maxWidth:840,margin:"0 auto"}}>
-      <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 14px",borderRadius:100,background:"var(--blue-dim,rgba(57,154,255,.12))",color:"var(--blue)",fontWeight:700,fontSize:13,marginBottom:22}}>
-        <span style={{width:8,height:8,borderRadius:"50%",background:"var(--blue)"}}/> Text · PDF · URL
+    <section style={{padding:"64px 6vw 40px",maxWidth:1100,margin:"0 auto",display:"flex",alignItems:"center",gap:40,flexWrap:"wrap"}}>
+      <div style={{flex:"1 1 380px",minWidth:280}}>
+        <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 14px",borderRadius:100,background:"var(--blue-dim,rgba(57,154,255,.12))",color:"var(--blue)",fontWeight:700,fontSize:13,marginBottom:22}}>
+          <span style={{width:8,height:8,borderRadius:"50%",background:"var(--blue)"}}/> Text · PDF · URL
+        </div>
+        <h1 style={{fontSize:"clamp(34px,5vw,54px)",fontWeight:800,lineHeight:1.1,margin:"0 0 18px"}}>Long reads,<br/><span style={{color:"var(--blue)"}}>short summaries.</span></h1>
+        <p style={{fontSize:"clamp(15px,2vw,18px)",color:"var(--text-2)",maxWidth:520,margin:"0 0 30px",lineHeight:1.6}}>Turn any article, document or webpage into a clear, grade-appropriate summary — choose the length, language and reading level.</p>
+        <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+          <button onClick={()=>setAuth("signup")} style={{padding:"14px 30px",borderRadius:12,border:"none",background:"var(--blue)",color:"#fff",fontWeight:700,fontSize:16,cursor:"pointer"}}>Get Started Free →</button>
+          <button onClick={onEnter} style={{padding:"14px 30px",borderRadius:12,border:"1.5px solid var(--border)",background:"var(--card)",color:"var(--text-1)",fontWeight:700,fontSize:16,cursor:"pointer"}}>Try it now</button>
+        </div>
       </div>
-      <h1 style={{fontSize:"clamp(34px,5vw,54px)",fontWeight:800,lineHeight:1.1,margin:"0 0 18px"}}>Long reads,<br/><span style={{color:"var(--blue)"}}>short summaries.</span></h1>
-      <p style={{fontSize:"clamp(15px,2vw,18px)",color:"var(--text-2)",maxWidth:600,margin:"0 auto 30px",lineHeight:1.6}}>Turn any article, document or webpage into a clear, grade-appropriate summary — choose the length, language and reading level.</p>
-      <div style={{display:"flex",gap:14,justifyContent:"center",flexWrap:"wrap"}}>
-        <button onClick={()=>setAuth("signup")} style={{padding:"14px 30px",borderRadius:12,border:"none",background:"var(--blue)",color:"#fff",fontWeight:700,fontSize:16,cursor:"pointer"}}>Get Started Free →</button>
-        <button onClick={onEnter} style={{padding:"14px 30px",borderRadius:12,border:"1.5px solid var(--border)",background:"var(--card)",color:"var(--text-1)",fontWeight:700,fontSize:16,cursor:"pointer"}}>Try it now</button>
+      <div style={{flex:"1 1 320px",minWidth:260,display:"flex",justifyContent:"center"}}>
+        <img src="https://image.pollinations.ai/prompt/3D%20Pixar%20cartoon%20illustration%20of%20a%20long%20document%20with%20many%20text%20lines%20being%20compressed%20into%20a%20short%20summary%20note%20card%2C%20with%20a%20glowing%20arrow%2C%20bright%20vibrant%20colors%2C%20clean%20white%20background?width=768&height=768&seed=22&nologo=true"
+             alt="Summarize long documents into short summaries"
+             loading="lazy"
+             onError={(e)=>{ e.currentTarget.style.display='none'; }}
+             style={{width:"100%",maxWidth:420,height:"auto",borderRadius:20,boxShadow:"var(--shadow-lg,var(--shadow))"}}/>
       </div>
     </section>
     <section style={{maxWidth:1000,margin:"0 auto",padding:"20px 6vw 56px"}}>
@@ -290,6 +299,25 @@ function Landing({onEnter, theme, toggleTheme}){
         </form>
       </div>
     </div>}
+  </div>;
+}
+
+function ProfileMenu(){
+  const [open, setOpen] = useState(false);
+  const user = (()=>{ try{return JSON.parse(localStorage.getItem("ais-user")||"{}")}catch{return {}} })();
+  const initial = (user.name||user.email||"U").charAt(0).toUpperCase();
+  const signOut = ()=>{ localStorage.removeItem("ais-user"); window.location.reload(); };
+  return <div style={{position:"relative"}}>
+    <button onClick={()=>setOpen(o=>!o)} title={user.name||"Profile"}
+      style={{width:36,height:36,borderRadius:"50%",border:"2px solid var(--border)",background:"var(--blue)",color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer"}}>{initial}</button>
+    {open && <>
+      <div onClick={()=>setOpen(false)} style={{position:"fixed",inset:0,zIndex:998}}/>
+      <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,minWidth:220,background:"var(--card)",border:"1.5px solid var(--border)",borderRadius:12,boxShadow:"var(--shadow-lg)",zIndex:999,padding:14}}>
+        <div style={{fontSize:14,fontWeight:700,color:"var(--text-1)",marginBottom:2}}>{user.name||"User"}</div>
+        <div style={{fontSize:12,color:"var(--text-3)",marginBottom:12,wordBreak:"break-all"}}>{user.email||""}</div>
+        <button onClick={signOut} style={{width:"100%",padding:"8px 12px",borderRadius:8,border:"1.5px solid #ef4444",background:"transparent",color:"#ef4444",fontWeight:700,fontSize:13,cursor:"pointer"}}>Sign Out</button>
+      </div>
+    </>}
   </div>;
 }
 
@@ -514,6 +542,7 @@ function App(){
               fontSize:11,fontWeight:700,color:"var(--blue)",cursor:"pointer",transition:"all .2s",letterSpacing:.6,textTransform:"uppercase"}}>
             {theme==='dark'?'☀️ Light':'🌙 Dark'}
           </button>
+          <ProfileMenu/>
         </div>
       </div>
     </header>
