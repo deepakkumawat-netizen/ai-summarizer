@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import os, io, re
 from typing import Optional
 from pathlib import Path
+from database import db as history_db
 
 load_dotenv()
 
@@ -222,6 +223,73 @@ async def extract_url(payload: dict):
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
 NO_CACHE_HEADERS = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"}
+
+# ─── HISTORY (SQLite, per-user, with date + session filters) ────────────────
+
+class SaveSummaryRequest(BaseModel):
+    user_id: str
+    session_id: Optional[str] = None
+    source_preview: str = ""
+    summary: str
+    length: str = ""
+    grade_level: str = ""
+    language: str = ""
+    word_count: int = 0
+
+
+class HistoryRequest(BaseModel):
+    user_id: str
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
+    session_id: Optional[str] = None
+    limit: int = 100
+
+
+class SessionListRequest(BaseModel):
+    user_id: str
+
+
+@app.post("/api/save-summary")
+def save_summary_endpoint(req: SaveSummaryRequest):
+    try:
+        sid = history_db.save_summary(
+            req.user_id,
+            req.source_preview,
+            req.summary,
+            length=req.length,
+            grade_level=req.grade_level,
+            language=req.language,
+            word_count=req.word_count,
+            session_id=req.session_id,
+        )
+        return {"success": True, "id": sid}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/api/summary-history")
+def get_history_endpoint(req: HistoryRequest):
+    try:
+        items = history_db.get_history(
+            req.user_id,
+            date_from=req.date_from,
+            date_to=req.date_to,
+            session_id=req.session_id,
+            limit=req.limit,
+        )
+        return {"success": True, "items": items, "count": len(items)}
+    except Exception as e:
+        return {"success": False, "error": str(e), "items": []}
+
+
+@app.post("/api/summary-sessions")
+def list_sessions_endpoint(req: SessionListRequest):
+    try:
+        sessions = history_db.list_sessions(req.user_id)
+        return {"success": True, "sessions": sessions}
+    except Exception as e:
+        return {"success": False, "error": str(e), "sessions": []}
+
 
 @app.get("/")
 def serve_index():
