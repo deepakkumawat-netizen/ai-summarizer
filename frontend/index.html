@@ -266,6 +266,12 @@ function Landing({onEnter, theme, toggleTheme}){
   const [form, setForm] = useState({name:"",email:"",password:""});
   const [err, setErr] = useState("");
   const isDark = theme==='dark';
+  // Rotate the hero image every 5s — same prompt, new Pollinations seed.
+  const [heroSeed, setHeroSeed] = useState(22);
+  useEffect(() => {
+    const t = setInterval(() => setHeroSeed(s => s + 1), 5000);
+    return () => clearInterval(t);
+  }, []);
   const FEATURES = [
     {icon:"📄",c:"#399aff",t:"Summarize Anything",d:"Paste text, upload a PDF, or drop a URL — get a clean summary in seconds."},
     {icon:"🎚️",c:"#22c55e",t:"Choose the Length",d:"From a 1-paragraph gist to detailed notes — pick exactly how long you want it."},
@@ -316,11 +322,12 @@ function Landing({onEnter, theme, toggleTheme}){
         </div>
       </div>
       <div style={{flex:"1 1 320px",minWidth:260,display:"flex",justifyContent:"center"}}>
-        <img src="https://image.pollinations.ai/prompt/3D%20Pixar%20cartoon%20illustration%20of%20a%20long%20document%20with%20many%20text%20lines%20being%20compressed%20into%20a%20short%20summary%20note%20card%2C%20with%20a%20glowing%20arrow%2C%20bright%20vibrant%20colors%2C%20clean%20white%20background?width=768&height=768&seed=22&nologo=true"
+        <img src={`https://image.pollinations.ai/prompt/3D%20Pixar%20cartoon%20illustration%20of%20a%20long%20document%20with%20many%20text%20lines%20being%20compressed%20into%20a%20short%20summary%20note%20card%2C%20with%20a%20glowing%20arrow%2C%20bright%20vibrant%20colors%2C%20clean%20white%20background?width=768&height=768&seed=${heroSeed}&nologo=true`}
              alt="Summarize long documents into short summaries"
              loading="lazy"
+             key={heroSeed}
              onError={(e)=>{ e.currentTarget.style.display='none'; }}
-             style={{width:"100%",maxWidth:420,height:"auto",borderRadius:20,boxShadow:"var(--shadow-lg,var(--shadow))"}}/>
+             style={{width:"100%",maxWidth:420,height:"auto",borderRadius:20,boxShadow:"var(--shadow-lg,var(--shadow))",transition:"opacity .4s"}}/>
       </div>
     </section>
     <section style={{maxWidth:1000,margin:"0 auto",padding:"20px 6vw 56px"}}>
