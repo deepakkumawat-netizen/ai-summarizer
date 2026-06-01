@@ -101,15 +101,33 @@ def _call_claude(messages, **kwargs):
     return _ClaudeResponse(text, CLAUDE_MODEL)
 
 
-def chat_with_fallback(messages, **kwargs):
+def chat_with_fallback(messages, prefer_anthropic: bool = True, **kwargs):
     """Run a chat completion, falling back across providers on rate-limit errors.
 
     Strips any model kwarg the caller passed — this helper chooses the model.
     Non-rate-limit errors propagate immediately so real bugs surface.
+
+    Default is prefer_anthropic=True: Claude Haiku 4.5 is tried FIRST since
+    the Groq free tier's daily quotas (100K tokens/model) are tight enough
+    that students see 429s in normal use. Claude is paid and uncapped at our
+    usage level, so it's both faster (no quota stalls) and steadier. If
+    Claude is unreachable or no key is set, the call drops through to the
+    Groq chain so the tool keeps working as a free-tier fallback.
+
+    Pass prefer_anthropic=False explicitly for any low-stakes background
+    call where the cost difference matters more than latency.
     """
     kwargs.pop("model", None)
 
     last_err = None
+
+    if prefer_anthropic and _anthropic is not None:
+        try:
+            return _call_claude(messages, **kwargs)
+        except Exception as e:
+            last_err = e
+            print(f"[llm] Claude (preferred) failed: {e} — falling through to Groq")
+
     if _groq is not None:
         for model in GROQ_FALLBACK_MODELS:
             try:
@@ -120,7 +138,7 @@ def chat_with_fallback(messages, **kwargs):
                 last_err = e
                 print(f"[llm] Groq {model} rate-limited, trying next…")
 
-    if _anthropic is not None:
+    if not prefer_anthropic and _anthropic is not None:
         try:
             print(f"[llm] All Groq models exhausted — falling back to Claude {CLAUDE_MODEL}")
             return _call_claude(messages, **kwargs)

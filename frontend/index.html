@@ -266,10 +266,20 @@ function Landing({onEnter, theme, toggleTheme}){
   const [form, setForm] = useState({name:"",email:"",password:""});
   const [err, setErr] = useState("");
   const isDark = theme==='dark';
-  // Rotate the hero image every 5s — same prompt, new Pollinations seed.
-  const [heroSeed, setHeroSeed] = useState(22);
+  // Hero image rotation — preload the next Pollinations seed in the
+  // background and only swap the visible src once it's fully loaded, so
+  // the user never sees a blank rectangle between rotations.
+  const buildHeroUrl = (s) => `https://image.pollinations.ai/prompt/3D%20Pixar%20cartoon%20illustration%20of%20a%20long%20document%20with%20many%20text%20lines%20being%20compressed%20into%20a%20short%20summary%20note%20card%2C%20with%20a%20glowing%20arrow%2C%20bright%20vibrant%20colors%2C%20clean%20white%20background?width=768&height=768&seed=${s}&nologo=true`;
+  const [heroUrl, setHeroUrl] = useState(buildHeroUrl(22));
   useEffect(() => {
-    const t = setInterval(() => setHeroSeed(s => s + 1), 5000);
+    let seed = 22;
+    const t = setInterval(() => {
+      seed += 1;
+      const nextUrl = buildHeroUrl(seed);
+      const img = new Image();
+      img.onload = () => setHeroUrl(nextUrl);
+      img.src = nextUrl;
+    }, 5000);
     return () => clearInterval(t);
   }, []);
   const FEATURES = [
@@ -322,12 +332,10 @@ function Landing({onEnter, theme, toggleTheme}){
         </div>
       </div>
       <div style={{flex:"1 1 320px",minWidth:260,display:"flex",justifyContent:"center"}}>
-        <img src={`https://image.pollinations.ai/prompt/3D%20Pixar%20cartoon%20illustration%20of%20a%20long%20document%20with%20many%20text%20lines%20being%20compressed%20into%20a%20short%20summary%20note%20card%2C%20with%20a%20glowing%20arrow%2C%20bright%20vibrant%20colors%2C%20clean%20white%20background?width=768&height=768&seed=${heroSeed}&nologo=true`}
+        <img src={heroUrl}
              alt="Summarize long documents into short summaries"
-             loading="lazy"
-             key={heroSeed}
              onError={(e)=>{ e.currentTarget.style.display='none'; }}
-             style={{width:"100%",maxWidth:420,height:"auto",borderRadius:20,boxShadow:"var(--shadow-lg,var(--shadow))",transition:"opacity .4s"}}/>
+             style={{width:"100%",maxWidth:420,height:"auto",aspectRatio:"1 / 1",borderRadius:20,boxShadow:"var(--shadow-lg,var(--shadow))",transition:"opacity .4s",background:"linear-gradient(135deg, var(--blue-soft,#e3f0ff), #f7fbff)"}}/>
       </div>
     </section>
     <section style={{maxWidth:1000,margin:"0 auto",padding:"20px 6vw 56px"}}>
