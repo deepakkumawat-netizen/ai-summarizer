@@ -7,3 +7,4 @@ pdfplumber
 requests
 beautifulsoup4
 python-multipart
+anthropic>=0.40.0

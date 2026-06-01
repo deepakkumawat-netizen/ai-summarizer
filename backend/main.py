@@ -26,6 +26,9 @@ OPENAI_API_KEY = os.getenv("GROQ_API_KEY", "").strip() or "missing-set-GROQ_API_
 OPENAI_MODEL   = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 client = OpenAI(api_key=OPENAI_API_KEY, base_url="https://api.groq.com/openai/v1")
 
+# Multi-provider chat helper with Groq → Claude fallback on rate limits.
+from llm_client import chat_with_fallback
+
 class SummarizeRequest(BaseModel):
     text: str
     length: str = "2_paragraphs"
@@ -136,8 +139,7 @@ def summarize(req: SummarizeRequest):
     )
 
     try:
-        response = client.chat.completions.create(
-            model=OPENAI_MODEL,
+        response = chat_with_fallback(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user",   "content": user_prompt},
